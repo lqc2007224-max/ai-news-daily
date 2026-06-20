@@ -6,6 +6,8 @@ import smtplib
 from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.header import Header
+from email.utils import formataddr
 
 from config import SMTP_SERVER, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL
 
@@ -19,8 +21,8 @@ def build_email(html_body: str) -> MIMEMultipart:
     today_str = datetime.now(BJ_TZ).strftime("%Y-%m-%d")
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"🤖 AI 每日新闻速递 | {today_str}"
-    msg["From"] = f"AI新闻助手 <{SENDER_EMAIL}>"
+    msg["Subject"] = Header(f"🤖 AI 每日新闻速递 | {today_str}", "utf-8")
+    msg["From"] = formataddr(("AI新闻助手", SENDER_EMAIL))
     msg["To"] = RECEIVER_EMAIL
 
     # Full HTML template

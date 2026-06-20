@@ -23,18 +23,12 @@ HEADERS = {
 
 def fetch_hackernews(n: int = MAX_ITEMS_PER_SOURCE) -> list[dict]:
     """Fetch top AI-related stories from Hacker News via Algolia search."""
-    ai_keywords = ["AI", "LLM", "GPT", "Claude", "OpenAI", "machine learning",
-                   "deep learning", "NLP", "transformer", "diffusion", "neural",
-                   "AGI", "RLHF", "fine-tune", "RAG", "vector", "embedding",
-                   "agent", "prompt", "inference", "GPU"]
-    query = " OR ".join(ai_keywords)
-    url = "https://hn.algolia.com/api/v1/search_by_date"
+    url = "https://hn.algolia.com/api/v1/search"
     try:
         r = requests.get(url, params={
-            "query": query,
+            "query": "AI OR LLM OR OpenAI OR GPT OR Claude",
             "tags": "story",
             "hitsPerPage": n,
-            "numericFilters": "points>20"
         }, headers=HEADERS, timeout=15)
         r.raise_for_status()
         hits = r.json().get("hits", [])
@@ -92,23 +86,36 @@ def fetch_arxiv(n: int = MAX_ITEMS_PER_SOURCE) -> list[dict]:
 # ─── 机器之心 (jiqizhixin.com) ───────────────────────────────────────────────
 
 def fetch_jiqizhixin(n: int = MAX_ITEMS_PER_SOURCE) -> list[dict]:
-    """Fetch AI news from 机器之心 (jiqizhixin.com)."""
+    """Fetch AI news from 机器之心 via homepage scraping as API is unreliable."""
     try:
-        r = requests.get("https://www.jiqizhixin.com/api/articles",
-                         params={"page": 1, "per_page": n},
-                         headers=HEADERS, timeout=15)
+        r = requests.get("https://www.jiqizhixin.com/",
+                         headers={**HEADERS, "Accept": "text/html"},
+                         timeout=15)
         r.raise_for_status()
-        data = r.json()
-        articles = data.get("data", []) if isinstance(data, dict) else data[:n]
+        soup = BeautifulSoup(r.text, "lxml")
         results = []
-        for a in articles:
+        seen = set()
+        # Try multiple selector patterns
+        for a in soup.select("a[href*='/articles/']"):
+            title = a.get_text(strip=True)
+            href = a.get("href", "")
+            if not title or not href or len(title) < 8:
+                continue
+            key = title[:60]
+            if key in seen:
+                continue
+            seen.add(key)
+            if not href.startswith("http"):
+                href = f"https://www.jiqizhixin.com{href}"
             results.append({
-                "title": a.get("title", "").strip(),
-                "url": f"https://www.jiqizhixin.com/articles/{a.get('id', '')}",
+                "title": title,
+                "url": href,
                 "source": "机器之心",
-                "summary": a.get("excerpt", "").strip()[:200] if a.get("excerpt") else "",
+                "summary": "",
                 "lang": "zh",
             })
+            if len(results) >= n:
+                break
         log.info(f"机器之心: fetched {len(results)} articles")
         return results
     except Exception as e:
@@ -121,48 +128,44 @@ def fetch_jiqizhixin(n: int = MAX_ITEMS_PER_SOURCE) -> list[dict]:
 def fetch_qbitai(n: int = MAX_ITEMS_PER_SOURCE) -> list[dict]:
     """Fetch AI news from 量子位 (qbitai.com) via scraping."""
     try:
-        r = requests.get("https://www.qbitai.com/", headers=HEADERS, timeout=15)
+        r = requests.get("https://www.qbitai.com/",
+                         headers={**HEADERS, "Accept": "text/html"},
+                         timeout=15)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "lxml")
         results = []
-        # Find article cards
-        articles = soup.select("div.article-list div.article-item, article, div.card")
-        if not articles:
-            # Try alternate selector
-            articles = soup.select("a[href*='/article/']")
-            seen = set()
-            for a in articles[:n]:
-                title = a.get_text(strip=True)
-                href = a.get("href", "")
-                if not title or not href or title in seen:
-                    continue
-                seen.add(title)
-                if not href.startswith("http"):
-                    href = f"https://www.qbitai.com{href}"
-                results.append({
-                    "title": title,
-                    "url": href,
-                    "source": "量子位",
-                    "summary": "",
-                    "lang": "zh",
-                })
-        else:
-            for item in articles[:n]:
-                title_el = item.select_one("h2, h3, .title, a")
-                if not title_el:
-                    continue
-                title = title_el.get_text(strip=True)
-                link_el = item.select_one("a[href]")
-                href = link_el.get("href", "") if link_el else ""
-                if href and not href.startswith("http"):
-                    href = f"https://www.qbitai.com{href}"
-                results.append({
-                    "title": title,
-                    "url": href or "https://www.qbitai.com/",
-                    "source": "量子位",
-                    "summary": "",
-                    "lang": "zh",
-                })
+        seen = set()
+        # Try broad selectors for article links
+        candidates = (
+            soup.select("a[href*='/article/']")
+            or soup.select("h2 a[href]")
+            or soup.select("h3 a[href]")
+            or soup.select(".title a[href]")
+            or soup.select("a[href]")
+        )
+        for a in candidates:
+            title = a.get_text(strip=True)
+            href = a.get("href", "")
+            if not title or not href or len(title) < 8:
+                continue
+            # Filter non-article links
+            if any(skip in href for skip in ["#", "javascript", "tag/", "author/", "category/"]):
+                continue
+            key = title[:60]
+            if key in seen:
+                continue
+            seen.add(key)
+            if not href.startswith("http"):
+                href = f"https://www.qbitai.com{href}" if href.startswith("/") else f"https://www.qbitai.com/{href}"
+            results.append({
+                "title": title,
+                "url": href,
+                "source": "量子位",
+                "summary": "",
+                "lang": "zh",
+            })
+            if len(results) >= n:
+                break
         log.info(f"量子位: fetched {len(results)} articles")
         return results
     except Exception as e:
@@ -173,25 +176,35 @@ def fetch_qbitai(n: int = MAX_ITEMS_PER_SOURCE) -> list[dict]:
 # ─── 36氪 (36kr.com) ─────────────────────────────────────────────────────────
 
 def fetch_36kr(n: int = MAX_ITEMS_PER_SOURCE) -> list[dict]:
-    """Fetch AI news from 36氪 via API."""
+    """Fetch AI news from 36氪 via homepage scraping."""
     try:
-        r = requests.get(
-            "https://www.36kr.com/api/search/article",
-            params={"keyword": "AI 人工智能", "per_page": n},
-            headers=HEADERS, timeout=15
-        )
+        r = requests.get("https://www.36kr.com/information/AI",
+                         headers={**HEADERS, "Accept": "text/html"},
+                         timeout=15)
         r.raise_for_status()
-        data = r.json()
-        items = data.get("data", {}).get("items", [])
+        soup = BeautifulSoup(r.text, "lxml")
         results = []
-        for item in items[:n]:
+        seen = set()
+        for a in soup.select("a[href*='/p/']"):
+            title = a.get_text(strip=True)
+            href = a.get("href", "")
+            if not title or not href or len(title) < 8:
+                continue
+            key = title[:60]
+            if key in seen:
+                continue
+            seen.add(key)
+            if not href.startswith("http"):
+                href = f"https://www.36kr.com{href}"
             results.append({
-                "title": item.get("title", "").strip(),
-                "url": f"https://www.36kr.com/p/{item.get('id', '')}",
+                "title": title,
+                "url": href,
                 "source": "36氪",
-                "summary": item.get("summary", "").strip()[:200] if item.get("summary") else "",
+                "summary": "",
                 "lang": "zh",
             })
+            if len(results) >= n:
+                break
         log.info(f"36氪: fetched {len(results)} articles")
         return results
     except Exception as e:
