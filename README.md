@@ -1,6 +1,6 @@
 # AI 每日新闻速递
 
-每日自动抓取中英文AI新闻，用 Claude 总结后发送到 QQ 邮箱。
+每日自动抓取中英文AI新闻，用 DeepSeek AI 智能总结后发送到 QQ 邮箱。
 
 ## 新闻来源
 
@@ -16,7 +16,7 @@
 每天早上 8:00 (北京时间)
    → GitHub Actions 自动运行
    → 抓取 5 个来源的 AI 新闻
-   → Claude API 智能总结分组
+   → DeepSeek API 智能总结分组
    → HTML 邮件发送到 QQ 邮箱
 ```
 
@@ -29,10 +29,11 @@
 3. 按提示发送短信验证 → 得到一串 16 位 **授权码**（不是QQ密码）
 4. 复制保存这个授权码
 
-### 2. 获取 Anthropic API Key
+### 2. 获取 DeepSeek API Key（免费额度）
 
-1. 前往 https://console.anthropic.com 注册或登录
-2. 创建 API Key → 复制保存
+1. 前往 https://platform.deepseek.com 注册（支持微信登录）
+2. 进入 **API Keys** → 创建 API Key → 复制保存
+3. 新用户赠送 500万 token 免费额度，够用很久
 
 ### 3. 创建 GitHub 仓库并推送
 
@@ -50,8 +51,8 @@ gh repo create ai-news-daily --source . --push
 # 设置 QQ 邮箱 SMTP 授权码
 gh secret set QQ_SMTP_PASSWORD
 
-# 设置 Anthropic API Key
-gh secret set ANTHROPIC_API_KEY
+# 设置 DeepSeek API Key
+gh secret set DEEPSEEK_API_KEY
 ```
 
 或者手动操作：GitHub 仓库 → Settings → Secrets and variables → Actions → New repository secret
@@ -66,7 +67,7 @@ gh secret set ANTHROPIC_API_KEY
 
 ```bash
 pip install -r requirements.txt
-set ANTHROPIC_API_KEY=your-key
+set DEEPSEEK_API_KEY=your-key
 set QQ_SMTP_PASSWORD=your-auth-code
 python main.py
 ```

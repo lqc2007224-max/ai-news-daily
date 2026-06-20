@@ -11,9 +11,9 @@ SENDER_EMAIL = "2367627988@qq.com"
 SENDER_PASSWORD = os.environ["QQ_SMTP_PASSWORD"]  # QQ邮箱SMTP授权码
 RECEIVER_EMAIL = "2367627988@qq.com"
 
-# --- Anthropic Claude ---
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
-CLAUDE_MODEL = "claude-sonnet-4-6"  # Good balance of quality/speed/cost
+# --- DeepSeek AI ---
+DEEPSEEK_API_KEY = os.environ["DEEPSEEK_API_KEY"]
+DEEPSEEK_MODEL = "deepseek-chat"  # Latest DeepSeek-V3, ~1 RMB per 1M tokens
 
 # --- Sources ---
 MAX_ITEMS_PER_SOURCE = 6  # Each source contributes up to 6 headlines

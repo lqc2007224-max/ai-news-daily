@@ -1,12 +1,12 @@
 """
-Summarize AI news using Claude API and produce a beautiful HTML email.
+Summarize AI news using DeepSeek API and produce a beautiful HTML email.
 """
 import logging
 from datetime import datetime, timezone, timedelta
 
-from anthropic import Anthropic
+from openai import OpenAI
 
-from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, MAX_TOTAL_NEWS
+from config import DEEPSEEK_API_KEY, DEEPSEEK_MODEL, MAX_TOTAL_NEWS
 
 log = logging.getLogger(__name__)
 
@@ -31,11 +31,11 @@ good typography, and accent colors (#1a56db blue family)."""
 
 
 def summarize_news(news_items: list[dict]) -> str:
-    """Send news to Claude and get back an HTML summary."""
+    """Send news to DeepSeek and get back an HTML summary."""
     if not news_items:
         return _fallback_html()
 
-    # Limit total items sent to Claude (control cost)
+    # Limit total items (control cost)
     items = news_items[:MAX_TOTAL_NEWS]
 
     # Build the prompt
@@ -53,18 +53,24 @@ def summarize_news(news_items: list[dict]) -> str:
 {news_block}"""
 
     try:
-        client = Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=4096,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
+        client = OpenAI(
+            api_key=DEEPSEEK_API_KEY,
+            base_url="https://api.deepseek.com",
         )
-        html_body = response.content[0].text
-        log.info(f"Claude summary generated: {len(html_body)} chars")
+        response = client.chat.completions.create(
+            model=DEEPSEEK_MODEL,
+            max_tokens=4096,
+            temperature=0.7,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        html_body = response.choices[0].message.content
+        log.info(f"DeepSeek summary generated: {len(html_body)} chars")
         return html_body
     except Exception as e:
-        log.error(f"Claude API call failed: {e}")
+        log.error(f"DeepSeek API call failed: {e}")
         return _fallback_html()
 
 
