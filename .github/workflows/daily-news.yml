@@ -2,8 +2,8 @@ name: AI Daily News
 
 on:
   schedule:
-    # 每天北京时间 8:00 (UTC+8) = UTC 0:00
-    - cron: "0 0 * * *"
+    # 每天北京时间 7:00 (UTC+8) = UTC 23:00
+    - cron: "0 23 * * *"
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
