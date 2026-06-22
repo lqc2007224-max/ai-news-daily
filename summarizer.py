@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone, timedelta
 
 import httpx
-from openai import OpenAI
+from openai import OpenAI, APIConnectionError
 
 from config import DEEPSEEK_API_KEY, DEEPSEEK_MODEL, MAX_TOTAL_NEWS
 
@@ -82,7 +82,7 @@ def summarize_news(news_items: list[dict]) -> str:
             html_body = response.choices[0].message.content
             log.info(f"DeepSeek summary generated: {len(html_body)} chars (attempt {attempt + 1})")
             return html_body
-        except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadTimeout) as e:
+        except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadTimeout, APIConnectionError) as e:
             last_error = e
             wait = 2 ** attempt
             log.warning(f"DeepSeek connection error (attempt {attempt + 1}/4), retrying in {wait}s: {e}")
@@ -94,16 +94,40 @@ def summarize_news(news_items: list[dict]) -> str:
                 time.sleep(2 ** attempt)
 
     log.error(f"DeepSeek failed after 4 attempts: {last_error}")
-    return _fallback_html()
+    return _fallback_html(items)
 
 
-def _fallback_html() -> str:
-    """Fallback HTML when summarization fails."""
+def _fallback_html(news_items: list[dict] | None = None) -> str:
+    """Build a simple HTML list of headlines when AI summarization fails."""
     now = datetime.now(BJ_TZ).strftime("%Y-%m-%d %H:%M")
-    return f"""
-    <div style="text-align:center;padding:40px;">
-        <h2>⚠️ 今日摘要生成失败</h2>
-        <p>生成时间: {now} (北京时间)</p>
-        <p>请稍后查看或联系管理员检查 API 配置。</p>
-    </div>
-    """
+    if not news_items:
+        return f"""
+        <div style="text-align:center;padding:40px;">
+            <h2>⚠️ 今日摘要生成失败</h2>
+            <p>生成时间: {now} (北京时间)</p>
+            <p>请稍后查看或联系管理员检查 API 配置。</p>
+        </div>
+        """
+
+    cards = []
+    for i, item in enumerate(news_items[:25], 1):
+        lang_icon = "🇬🇧" if item.get("lang") == "en" else "🇨🇳"
+        source = item.get("source", "")
+        title = item.get("title", "")
+        url = item.get("url", "")
+        extra = f" — {item['summary']}" if item.get("summary") else ""
+        cards.append(f"""<div style="padding:12px 0;border-bottom:1px solid #e2e8f0;">
+            <span style="color:#1a56db;font-weight:600;">{i}.</span>
+            {lang_icon} <strong>[{source}]</strong>
+            <a href="{url}" style="color:#1a1a2e;text-decoration:none;">{title}</a>
+            <span style="color:#888;font-size:0.85em;">{extra}</span>
+        </div>""")
+
+    return f"""<div style="padding:10px 0;">
+        <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:12px 16px;margin-bottom:20px;border-radius:0 8px 8px 0;">
+            <strong>⚠️ AI 摘要暂时不可用</strong><br>
+            <span style="font-size:0.9em;color:#92400e;">DeepSeek API 连接失败，以下是今日原始新闻列表。AI 摘要将在下次运行时自动恢复。</span>
+        </div>
+        <div style="font-size:0.85em;color:#888;margin-bottom:16px;">📋 共 {len(news_items)} 条新闻 · {now} (北京时间)</div>
+        {"".join(cards)}
+    </div>"""
