@@ -2,8 +2,10 @@
 Summarize AI news using DeepSeek API and produce a beautiful HTML email.
 """
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 
+import httpx
 from openai import OpenAI
 
 from config import DEEPSEEK_API_KEY, DEEPSEEK_MODEL, MAX_TOTAL_NEWS
@@ -11,6 +13,12 @@ from config import DEEPSEEK_API_KEY, DEEPSEEK_MODEL, MAX_TOTAL_NEWS
 log = logging.getLogger(__name__)
 
 BJ_TZ = timezone(timedelta(hours=8))
+
+# Custom HTTP client with longer timeouts
+_http_client = httpx.Client(
+    timeout=httpx.Timeout(connect=30.0, read=120.0, write=30.0, pool=30.0),
+    limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+)
 
 SYSTEM_PROMPT = """You are an AI news editor creating a daily digest for Chinese readers.
 Your task: given a list of AI news headlines (mix of English and Chinese sources),
@@ -52,26 +60,41 @@ def summarize_news(news_items: list[dict]) -> str:
 
 {news_block}"""
 
-    try:
-        client = OpenAI(
-            api_key=DEEPSEEK_API_KEY,
-            base_url="https://api.deepseek.com",
-        )
-        response = client.chat.completions.create(
-            model=DEEPSEEK_MODEL,
-            max_tokens=4096,
-            temperature=0.7,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-        )
-        html_body = response.choices[0].message.content
-        log.info(f"DeepSeek summary generated: {len(html_body)} chars")
-        return html_body
-    except Exception as e:
-        log.error(f"DeepSeek API call failed: {e}")
-        return _fallback_html()
+    client = OpenAI(
+        api_key=DEEPSEEK_API_KEY,
+        base_url="https://api.deepseek.com",
+        http_client=_http_client,
+        max_retries=0,
+    )
+
+    last_error = None
+    for attempt in range(4):
+        try:
+            response = client.chat.completions.create(
+                model=DEEPSEEK_MODEL,
+                max_tokens=4096,
+                temperature=0.7,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+            )
+            html_body = response.choices[0].message.content
+            log.info(f"DeepSeek summary generated: {len(html_body)} chars (attempt {attempt + 1})")
+            return html_body
+        except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadTimeout) as e:
+            last_error = e
+            wait = 2 ** attempt
+            log.warning(f"DeepSeek connection error (attempt {attempt + 1}/4), retrying in {wait}s: {e}")
+            time.sleep(wait)
+        except Exception as e:
+            last_error = e
+            log.error(f"DeepSeek API error (attempt {attempt + 1}/4): {e}")
+            if attempt < 3:
+                time.sleep(2 ** attempt)
+
+    log.error(f"DeepSeek failed after 4 attempts: {last_error}")
+    return _fallback_html()
 
 
 def _fallback_html() -> str:
