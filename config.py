@@ -13,7 +13,7 @@ RECEIVER_EMAIL = "2367627988@qq.com"
 
 # --- DeepSeek AI ---
 DEEPSEEK_API_KEY = os.environ["DEEPSEEK_API_KEY"]
-DEEPSEEK_MODEL = "deepseek-chat"  # Latest DeepSeek-V3, ~1 RMB per 1M tokens
+DEEPSEEK_MODEL = "deepseek-v4-pro"  # Latest DeepSeek-V3, ~1 RMB per 1M tokens
 
 # --- Sources ---
 MAX_ITEMS_PER_SOURCE = 6  # Each source contributes up to 6 headlines
