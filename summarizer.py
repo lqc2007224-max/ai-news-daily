@@ -80,6 +80,7 @@ def summarize_news(news_items: list[dict]) -> str:
                 model=DEEPSEEK_MODEL,
                 max_tokens=4096,
                 temperature=0.7,
+                extra_body={"thinking": {"type": "disabled"}},
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
